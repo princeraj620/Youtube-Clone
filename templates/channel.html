@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}{{ channel_user.username }} - YouTube Clone{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Channel Header -->
+    <div class="channel-header mb-4">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='img/default-avatar.png') }}" 
+                         alt="{{ channel_user.username }}" class="rounded-circle me-4" width="120" height="120">
+                    <div>
+                        <h1 class="channel-name mb-2">{{ channel_user.username }}</h1>
+                        <p class="text-muted mb-2">
+                            {{ channel_user.subscribers|length if channel_user.subscribers else 0 }} subscribers
+                        </p>
+                        <p class="text-muted mb-0">
+                            Member since {{ channel_user.created_at.strftime('%B %Y') if channel_user.created_at else 'Unknown' }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                {% if current_user.is_authenticated and current_user.id != channel_user._id %}
+                    <button class="btn btn-outline-primary btn-lg" id="subscribe-{{ channel_user._id }}" 
+                            onclick="subscribeChannel('{{ channel_user._id }}')">
+                        {% if is_subscribed %}
+                            <i class="fas fa-bell"></i> Subscribed
+                        {% else %}
+                            <i class="fas fa-bell"></i> Subscribe
+                        {% endif %}
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Channel Navigation -->
+    <div class="channel-nav mb-4">
+        <ul class="nav nav-tabs" id="channelTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos" type="button" role="tab">
+                    <i class="fas fa-video"></i> Videos ({{ videos|length }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="about-tab" data-bs-toggle="tab" data-bs-target="#about" type="button" role="tab">
+                    <i class="fas fa-info-circle"></i> About
+                </button>
+            </li>
+        </ul>
+    </div>
+    
+    <!-- Tab Content -->
+    <div class="tab-content" id="channelTabContent">
+        <!-- Videos Tab -->
+        <div class="tab-pane fade show active" id="videos" role="tabpanel">
+            {% if videos %}
+                <div class="video-grid">
+                    {% for video in videos %}
+                        <div class="video-card" onclick="window.location.href='{{ url_for('video', video_id=video._id) }}'">
+                            <div class="video-thumbnail">
+                                <img src="{{ video.thumbnail }}" alt="{{ video.title }}">
+                                <div class="video-duration">3:45</div>
+                            </div>
+                            <div class="video-info">
+                                <h5 class="video-title">{{ video.title }}</h5>
+                                <div class="video-meta">
+                                    <div class="video-stats">
+                                        {{ video.views or 0 }} views • 
+                                        {{ video.created_at.strftime('%b %d, %Y') if video.created_at else 'Unknown date' }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-video fa-3x text-muted mb-3"></i>
+                    <h3 class="text-muted">No videos yet</h3>
+                    <p class="text-muted">
+                        {% if current_user.is_authenticated and current_user.id == channel_user._id %}
+                            Start sharing your videos with the world!
+                        {% else %}
+                            This channel hasn't uploaded any videos yet.
+                        {% endif %}
+                    </p>
+                    {% if current_user.is_authenticated and current_user.id == channel_user._id %}
+                        <a href="{{ url_for('upload') }}" class="btn btn-primary">
+                            <i class="fas fa-upload"></i> Upload Video
+                        </a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- About Tab -->
+        <div class="tab-pane fade" id="about" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">About {{ channel_user.username }}</h5>
+                            <p class="card-text">
+                                {% if channel_user.bio %}
+                                    {{ channel_user.bio }}
+                                {% else %}
+                                    No bio available.
+                                {% endif %}
+                            </p>
+                            
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <h6>Channel Statistics</h6>
+                                    <ul class="list-unstyled">
+                                        <li><strong>Subscribers:</strong> {{ channel_user.subscribers|length if channel_user.subscribers else 0 }}</li>
+                                        <li><strong>Videos:</strong> {{ videos|length }}</li>
+                                        <li><strong>Member since:</strong> {{ channel_user.created_at.strftime('%B %Y') if channel_user.created_at else 'Unknown' }}</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Contact Information</h6>
+                                    <ul class="list-unstyled">
+                                        <li><strong>Email:</strong> {{ channel_user.email }}</li>
+                                        {% if channel_user.website %}
+                                            <li><strong>Website:</strong> <a href="{{ channel_user.website }}" target="_blank">{{ channel_user.website }}</a></li>
+                                        {% endif %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Recent Activity</h6>
+                            <div class="timeline">
+                                {% for video in videos[:5] %}
+                                    <div class="timeline-item">
+                                        <div class="timeline-marker"></div>
+                                        <div class="timeline-content">
+                                            <small class="text-muted">{{ video.created_at.strftime('%b %d') if video.created_at else 'Unknown' }}</small>
+                                            <p class="mb-0">Uploaded "{{ video.title }}"</p>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.channel-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+}
+
+.channel-name {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.channel-nav .nav-tabs {
+    border-bottom: 2px solid #e5e5e5;
+}
+
+.channel-nav .nav-link {
+    border: none;
+    color: #666;
+    font-weight: 500;
+    padding: 1rem 1.5rem;
+    border-radius: 0;
+}
+
+.channel-nav .nav-link.active {
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+    background: none;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.5rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e5e5e5;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -1.5rem;
+    top: 0.25rem;
+    width: 12px;
+    height: 12px;
+    background: var(--primary-color);
+    border-radius: 50%;
+}
+
+.timeline-content {
+    padding-left: 1rem;
+}
+
+@media (max-width: 768px) {
+    .channel-header {
+        padding: 1rem;
+    }
+    
+    .channel-name {
+        font-size: 1.5rem;
+    }
+    
+    .d-flex.align-items-center {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .col-md-4.text-end {
+        text-align: center !important;
+        margin-top: 1rem;
+    }
+}
+</style>
+
+<script>
+// Channel navigation enhancement
+document.addEventListener('DOMContentLoaded', function() {
+    // Add smooth scrolling to tabs
+    const tabs = document.querySelectorAll('[data-bs-toggle="tab"]');
+    tabs.forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function (e) {
+            // You can add additional logic here when tabs are switched
+        });
+    });
+});
+</script>
+{% endblock %} 

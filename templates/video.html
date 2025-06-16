@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}{{ video.title }} - YouTube Clone{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Main Video Section -->
+        <div class="col-lg-8">
+            <!-- Video Player -->
+            <div class="video-player-container mb-4">
+                <video class="video-player" controls>
+                    <source src="{{ url_for('serve_video', filename=video.filename) }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            
+            <!-- Video Info -->
+            <div class="video-info-section mb-4">
+                <h1 class="video-title mb-3">{{ video.title }}</h1>
+                
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center">
+                        <img src="{{ url_for('static', filename='img/default-avatar.png') }}" 
+                             alt="{{ user.username }}" class="rounded-circle me-3" width="40" height="40">
+                        <div>
+                            <h6 class="mb-0">
+                                <a href="{{ url_for('channel', username=user.username) }}" class="text-decoration-none">
+                                    {{ user.username }}
+                                </a>
+                            </h6>
+                            <small class="text-muted">{{ user.subscribers|length if user.subscribers else 0 }} subscribers</small>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-center gap-2">
+                        {% if current_user.is_authenticated %}
+                            <button class="btn btn-outline-primary" id="subscribe-{{ user._id }}" 
+                                    onclick="subscribeChannel('{{ user._id }}')">
+                                {% if current_user.id in (user.subscribers or []) %}
+                                    Subscribed
+                                {% else %}
+                                    Subscribe
+                                {% endif %}
+                            </button>
+                        {% endif %}
+                        
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary" id="like-{{ video._id }}" 
+                                    onclick="likeVideo('{{ video._id }}', 'like')">
+                                <i class="fas fa-thumbs-up"></i>
+                                <span id="like-count-{{ video._id }}">{{ video.likes or 0 }}</span>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="dislike-{{ video._id }}" 
+                                    onclick="likeVideo('{{ video._id }}', 'dislike')">
+                                <i class="fas fa-thumbs-down"></i>
+                                <span id="dislike-count-{{ video._id }}">{{ video.dislikes or 0 }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="video-stats mb-3">
+                    <span class="text-muted">{{ video.views or 0 }} views</span>
+                    <span class="text-muted">•</span>
+                    <span class="text-muted">{{ video.created_at.strftime('%b %d, %Y') if video.created_at else 'Unknown date' }}</span>
+                </div>
+                
+                <div class="video-description p-3 bg-light rounded">
+                    <p class="mb-0">{{ video.description or 'No description available.' }}</p>
+                </div>
+            </div>
+            
+            <!-- Comments Section -->
+            <div class="comments-section">
+                <h5 class="mb-3">
+                    <i class="fas fa-comments"></i> 
+                    {{ comments|length }} Comments
+                </h5>
+                
+                {% if current_user.is_authenticated %}
+                    <div class="comment-form mb-4">
+                        <form method="POST" action="{{ url_for('add_comment') }}">
+                            <input type="hidden" name="video_id" value="{{ video._id }}">
+                            <div class="d-flex gap-3">
+                                <img src="{{ url_for('static', filename='img/default-avatar.png') }}" 
+                                     alt="{{ current_user.username }}" class="rounded-circle" width="40" height="40">
+                                <div class="flex-grow-1">
+                                    <textarea class="form-control" name="content" rows="2" 
+                                              placeholder="Add a comment..." required></textarea>
+                                    <div class="d-flex justify-content-end mt-2">
+                                        <button type="submit" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-paper-plane"></i> Comment
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                {% endif %}
+                
+                <!-- Comments List -->
+                <div class="comments-list">
+                    {% for comment in comments %}
+                        <div class="comment">
+                            <div class="d-flex gap-3">
+                                <img src="{{ url_for('static', filename='img/default-avatar.png') }}" 
+                                     alt="{{ comment.author }}" class="rounded-circle" width="40" height="40">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center mb-1">
+                                        <h6 class="mb-0 me-2">{{ comment.author }}</h6>
+                                        <small class="text-muted">
+                                            {{ comment.created_at.strftime('%b %d, %Y') if comment.created_at else 'Unknown date' }}
+                                        </small>
+                                    </div>
+                                    <p class="mb-0">{{ comment.content }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    
+                    {% if not comments %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-comments fa-2x text-muted mb-3"></i>
+                            <p class="text-muted">No comments yet. Be the first to comment!</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Related Videos Sidebar -->
+        <div class="col-lg-4">
+            <h5 class="mb-3">
+                <i class="fas fa-play-circle"></i> Related Videos
+            </h5>
+            
+            {% if related_videos %}
+                <div class="related-videos">
+                    {% for related_video in related_videos %}
+                        <div class="related-video-card mb-3" onclick="window.location.href='{{ url_for('video', video_id=related_video._id) }}'">
+                            <div class="d-flex gap-2">
+                                <div class="related-thumbnail">
+                                    <img src="{{ related_video.thumbnail }}" alt="{{ related_video.title }}" 
+                                         class="rounded" width="120" height="68">
+                                </div>
+                                <div class="related-info">
+                                    <h6 class="related-title">{{ related_video.title }}</h6>
+                                    <small class="text-muted">{{ user.username }}</small><br>
+                                    <small class="text-muted">{{ related_video.views or 0 }} views</small>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-video fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">No related videos</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.video-player-container {
+    position: relative;
+    width: 100%;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.video-player {
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
+}
+
+.video-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.video-stats {
+    font-size: 0.9rem;
+}
+
+.comment-form textarea {
+    border-radius: 20px;
+    resize: none;
+}
+
+.comment {
+    padding: 1rem 0;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.comment:last-child {
+    border-bottom: none;
+}
+
+.related-video-card {
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.related-video-card:hover {
+    background-color: #f8f9fa;
+}
+
+.related-title {
+    font-size: 0.9rem;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.related-thumbnail img {
+    object-fit: cover;
+}
+
+@media (max-width: 768px) {
+    .video-player {
+        max-height: 50vh;
+    }
+    
+    .d-flex.justify-content-between {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 1rem;
+    }
+}
+</style>
+
+<script>
+// Initialize like/dislike buttons state
+document.addEventListener('DOMContentLoaded', function() {
+    // You can add logic here to check if user has already liked/disliked
+    // and set the appropriate classes
+});
+
+// Video player enhancements
+const video = document.querySelector('.video-player');
+if (video) {
+    video.addEventListener('play', function() {
+        // Track video play event
+        console.log('Video started playing');
+    });
+    
+    video.addEventListener('ended', function() {
+        // Track video completion
+        console.log('Video ended');
+    });
+}
+</script>
+{% endblock %} 

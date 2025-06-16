@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Trending - YouTube Clone{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="trending-header mb-4">
+                <h1 class="mb-3">
+                    <i class="fas fa-fire"></i> Trending Videos
+                </h1>
+                <p class="text-muted">The most popular videos right now</p>
+            </div>
+            
+            {% if videos %}
+                <div class="video-grid">
+                    {% for video in videos %}
+                        <div class="video-card trending-card" onclick="window.location.href='{{ url_for('video', video_id=video._id) }}'">
+                            <div class="video-thumbnail">
+                                <img src="{{ video.thumbnail }}" alt="{{ video.title }}">
+                                <div class="video-duration">3:45</div>
+                                <div class="trending-badge">
+                                    <i class="fas fa-fire"></i> #{{ loop.index }}
+                                </div>
+                            </div>
+                            <div class="video-info">
+                                <h5 class="video-title">{{ video.title }}</h5>
+                                <div class="video-meta">
+                                    <div class="channel-name">
+                                        {% if video.user_info %}
+                                            <a href="{{ url_for('channel', username=video.user_info.username) }}" 
+                                               class="text-decoration-none text-dark">
+                                                {{ video.user_info.username }}
+                                            </a>
+                                        {% else %}
+                                            Unknown Channel
+                                        {% endif %}
+                                    </div>
+                                    <div class="video-stats">
+                                        <span class="views-count">{{ video.view_count or 0 }} views</span>
+                                        <span class="text-muted">•</span>
+                                        <span class="text-muted">{{ video.created_at.strftime('%b %d, %Y') if video.created_at else 'Unknown date' }}</span>
+                                    </div>
+                                    <div class="trending-stats">
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-trending-up"></i> Trending
+                                        </span>
+                                        <span class="text-muted">• {{ video.likes or 0 }} likes</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-fire fa-3x text-muted mb-3"></i>
+                    <h3 class="text-muted">No trending videos</h3>
+                    <p class="text-muted">Check back later for the latest trending content!</p>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">
+                        <i class="fas fa-home"></i> Go Home
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.trending-header {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+}
+
+.trending-card {
+    position: relative;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.trending-card:hover {
+    border-color: #ff6b6b;
+    transform: translateY(-6px);
+    box-shadow: 0 12px 30px rgba(255, 107, 107, 0.2);
+}
+
+.trending-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(255, 107, 107, 0.9);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+}
+
+.trending-stats {
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.views-count {
+    font-weight: 600;
+    color: #ff6b6b;
+}
+
+.trending-stats .badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .trending-header {
+        padding: 1rem;
+    }
+    
+    .trending-badge {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+    }
+}
+</style>
+
+<script>
+// Add trending animation
+document.addEventListener('DOMContentLoaded', function() {
+    const trendingCards = document.querySelectorAll('.trending-card');
+    
+    trendingCards.forEach((card, index) => {
+        card.style.animationDelay = `${index * 0.1}s`;
+        card.classList.add('animate__animated', 'animate__fadeInUp');
+    });
+});
+
+// Track trending video clicks
+function trackTrendingClick(videoId, position) {
+    // You can implement analytics tracking here
+    console.log(`Trending video clicked: ${videoId} at position ${position}`);
+}
+</script>
+{% endblock %} 
