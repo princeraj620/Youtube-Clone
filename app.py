@@ -544,11 +544,20 @@ def channel(username):
     # Get user's videos
     videos = list(videos_collection.find({'user_id': user_data['_id']}).sort('created_at', -1))
     
-    # Check if current user is subscribed
+    # Add user info to videos for display
+    for video in videos:
+        video['user_info'] = user_data
+    
+    # Check if current user is subscribed - handle subscribers field properly
     is_subscribed = False
     if current_user.is_authenticated:
         current_user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
-        is_subscribed = current_user.id in user_data.get('subscribers', [])
+        subscribers = user_data.get('subscribers', [])
+        if isinstance(subscribers, list):
+            is_subscribed = current_user.id in subscribers
+        else:
+            # If subscribers is not a list, assume not subscribed
+            is_subscribed = False
     
     return render_template('channel.html', 
                          channel_user=user_data, 
@@ -565,27 +574,48 @@ def subscribe(user_id):
     
     current_user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
     
-    if current_user.id in target_user.get('subscribers', []):
+    # Ensure subscribers field is a list
+    subscribers = target_user.get('subscribers', [])
+    if not isinstance(subscribers, list):
+        subscribers = []
+    
+    if current_user.id in subscribers:
         # Unsubscribe
+        subscribers.remove(current_user.id)
         users_collection.update_one(
             {'_id': ObjectId(user_id)},
-            {'$pull': {'subscribers': current_user.id}}
+            {'$set': {'subscribers': subscribers}}
         )
-        users_collection.update_one(
-            {'_id': ObjectId(current_user.id)},
-            {'$pull': {'subscribed_to': user_id}}
-        )
+        
+        # Also remove from current user's subscribed_to list
+        subscribed_to = current_user_data.get('subscribed_to', [])
+        if isinstance(subscribed_to, list) and user_id in subscribed_to:
+            subscribed_to.remove(user_id)
+            users_collection.update_one(
+                {'_id': ObjectId(current_user.id)},
+                {'$set': {'subscribed_to': subscribed_to}}
+            )
+        
         is_subscribed = False
     else:
         # Subscribe
+        subscribers.append(current_user.id)
         users_collection.update_one(
             {'_id': ObjectId(user_id)},
-            {'$push': {'subscribers': current_user.id}}
+            {'$set': {'subscribers': subscribers}}
         )
-        users_collection.update_one(
-            {'_id': ObjectId(current_user.id)},
-            {'$push': {'subscribed_to': user_id}}
-        )
+        
+        # Also add to current user's subscribed_to list
+        subscribed_to = current_user_data.get('subscribed_to', [])
+        if not isinstance(subscribed_to, list):
+            subscribed_to = []
+        if user_id not in subscribed_to:
+            subscribed_to.append(user_id)
+            users_collection.update_one(
+                {'_id': ObjectId(current_user.id)},
+                {'$set': {'subscribed_to': subscribed_to}}
+            )
+        
         is_subscribed = True
     
     return jsonify({'success': True, 'is_subscribed': is_subscribed})
@@ -646,6 +676,166 @@ def demo_login():
     else:
         flash('Demo user not found. Please register first.', 'error')
     return redirect(url_for('index'))
+
+@app.route('/profile/edit', methods=['POST'])
+@login_required
+def edit_profile():
+    data = request.get_json()
+    update_fields = {
+        'username': data.get('username'),
+        'email': data.get('email'),
+        'phone': data.get('phone'),
+        'location': data.get('location'),
+        'website': data.get('website'),
+        'bio': data.get('bio')
+    }
+    # Remove empty fields
+    update_fields = {k: v for k, v in update_fields.items() if v is not None}
+    users_collection.update_one({'_id': ObjectId(current_user.id)}, {'$set': update_fields})
+    return jsonify({'success': True})
+
+@app.route('/video/<video_id>/delete', methods=['POST'])
+@login_required
+def delete_video(video_id):
+    """Delete a video (only by the video owner)"""
+    video = videos_collection.find_one({'_id': ObjectId(video_id)})
+    if not video:
+        return jsonify({'success': False, 'message': 'Video not found'}), 404
+    
+    # Check if current user owns the video
+    if str(video['user_id']) != str(current_user.id):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    # Delete video file
+    video_path = os.path.join(VIDEO_FOLDER, video['filename'])
+    if os.path.exists(video_path):
+        os.remove(video_path)
+    
+    # Delete thumbnail if exists
+    if video.get('thumbnail') and video['thumbnail'] != '/static/img/default-thumbnail.jpg':
+        thumbnail_path = os.path.join(THUMBNAIL_FOLDER, os.path.basename(video['thumbnail']))
+        if os.path.exists(thumbnail_path):
+            os.remove(thumbnail_path)
+    
+    # Delete video from database
+    videos_collection.delete_one({'_id': ObjectId(video_id)})
+    
+    # Delete related comments
+    comments_collection.delete_many({'video_id': ObjectId(video_id)})
+    
+    # Delete related likes
+    likes_collection.delete_many({'video_id': ObjectId(video_id)})
+    
+    # Delete related views
+    views_collection.delete_many({'video_id': ObjectId(video_id)})
+    
+    return jsonify({'success': True, 'message': 'Video deleted successfully'})
+
+@app.route('/profile')
+@login_required
+def profile():
+    """User profile page"""
+    user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+    if not user_data:
+        flash('User not found!', 'error')
+        return redirect(url_for('index'))
+    
+    # Get user's videos
+    user_videos = list(videos_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', -1))
+    
+    # Calculate statistics - handle subscribers field properly
+    subscribers = user_data.get('subscribers', [])
+    if isinstance(subscribers, int):
+        subscriber_count = subscribers
+    else:
+        subscriber_count = len(subscribers) if subscribers else 0
+    
+    total_views = sum(video.get('views', 0) for video in user_videos)
+    
+    # Add user info to videos for display
+    for video in user_videos:
+        video['user_info'] = user_data
+    
+    return render_template('profile.html', 
+                         user=user_data,
+                         user_videos=user_videos,
+                         subscriber_count=subscriber_count,
+                         total_views=total_views,
+                         is_subscribed=False)  # User can't subscribe to themselves
+
+@app.route('/profile/change-password', methods=['POST'])
+@login_required
+def change_password():
+    """Change user password"""
+    data = request.get_json()
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+    
+    if not current_password or not new_password:
+        return jsonify({'success': False, 'message': 'Both passwords are required'})
+    
+    # Get current user data
+    user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+    if not user_data:
+        return jsonify({'success': False, 'message': 'User not found'})
+    
+    # Verify current password
+    if not bcrypt.checkpw(current_password.encode('utf-8'), user_data['password']):
+        return jsonify({'success': False, 'message': 'Current password is incorrect'})
+    
+    # Hash new password
+    hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
+    
+    # Update password
+    users_collection.update_one(
+        {'_id': ObjectId(current_user.id)},
+        {'$set': {'password': hashed_password}}
+    )
+    
+    return jsonify({'success': True, 'message': 'Password changed successfully'})
+
+@app.route('/profile/delete-account', methods=['POST'])
+@login_required
+def delete_account():
+    """Delete user account and all associated data"""
+    # Get user data
+    user_data = users_collection.find_one({'_id': ObjectId(current_user.id)})
+    if not user_data:
+        return jsonify({'success': False, 'message': 'User not found'})
+    
+    # Delete all user's videos
+    user_videos = list(videos_collection.find({'user_id': ObjectId(current_user.id)}))
+    for video in user_videos:
+        # Delete video file
+        video_path = os.path.join(VIDEO_FOLDER, video['filename'])
+        if os.path.exists(video_path):
+            os.remove(video_path)
+        
+        # Delete thumbnail
+        if video.get('thumbnail') and video['thumbnail'] != '/static/img/default-thumbnail.jpg':
+            thumbnail_path = os.path.join(THUMBNAIL_FOLDER, os.path.basename(video['thumbnail']))
+            if os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+    
+    # Delete from database
+    videos_collection.delete_many({'user_id': ObjectId(current_user.id)})
+    comments_collection.delete_many({'user_id': ObjectId(current_user.id)})
+    likes_collection.delete_many({'user_id': ObjectId(current_user.id)})
+    views_collection.delete_many({'user_id': ObjectId(current_user.id)})
+    
+    # Remove user from others' subscribers list
+    users_collection.update_many(
+        {'subscribers': current_user.id},
+        {'$pull': {'subscribers': current_user.id}}
+    )
+    
+    # Delete user account
+    users_collection.delete_one({'_id': ObjectId(current_user.id)})
+    
+    # Logout user
+    logout_user()
+    
+    return jsonify({'success': True, 'message': 'Account deleted successfully'})
 
 if __name__ == '__main__':
     # Create sample data on startup

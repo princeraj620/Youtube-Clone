@@ -14,7 +14,11 @@
                     <div>
                         <h1 class="channel-name mb-2">{{ channel_user.username }}</h1>
                         <p class="text-muted mb-2">
-                            {{ channel_user.subscribers|length if channel_user.subscribers else 0 }} subscribers
+                            {% if channel_user.subscribers is iterable and channel_user.subscribers is not string %}
+                                {{ channel_user.subscribers|length }} subscribers
+                            {% else %}
+                                {{ channel_user.subscribers or 0 }} subscribers
+                            {% endif %}
                         </p>
                         <p class="text-muted mb-0">
                             Member since {{ channel_user.created_at.strftime('%B %Y') if channel_user.created_at else 'Unknown' }}
@@ -116,7 +120,13 @@
                                 <div class="col-md-6">
                                     <h6>Channel Statistics</h6>
                                     <ul class="list-unstyled">
-                                        <li><strong>Subscribers:</strong> {{ channel_user.subscribers|length if channel_user.subscribers else 0 }}</li>
+                                        <li><strong>Subscribers:</strong> 
+                                            {% if channel_user.subscribers is iterable and channel_user.subscribers is not string %}
+                                                {{ channel_user.subscribers|length }}
+                                            {% else %}
+                                                {{ channel_user.subscribers or 0 }}
+                                            {% endif %}
+                                        </li>
                                         <li><strong>Videos:</strong> {{ videos|length }}</li>
                                         <li><strong>Member since:</strong> {{ channel_user.created_at.strftime('%B %Y') if channel_user.created_at else 'Unknown' }}</li>
                                     </ul>
