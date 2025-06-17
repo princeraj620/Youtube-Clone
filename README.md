@@ -38,6 +38,7 @@ python app.py
 ## 🎯 Demo Access
 
 Once the application is running:
+Live access - https://6a6e5bee-6df6-497c-96f4-acca8cea596e-00-zfrsh8m8eegx.sisko.replit.dev/
 - **Main Site**: http://localhost:5000
 - **Quick Demo Login**: http://localhost:5000/demo-login
 - **Demo Credentials**: 
